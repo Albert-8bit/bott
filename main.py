@@ -6,6 +6,7 @@ import re
 import requests
 from datetime import datetime
 
+# --- matplotlib backend fix for Railway (headless) ---
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -24,19 +25,22 @@ from telegram.ext import (
     CallbackQueryHandler,
 )
 
-BOT_TOKEN = '7997768946:AAH_8jjar9uU1IDcPav3XRazFQQwXFt1tqo'
+BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN") or '7997768946:AAH_8jjar9uU1IDcPav3XRazFQQwXFt1tqo'  # You can remove token here and use env variable only
 
 DATA_FILE = "price_data.json"
-FETCH_INTERVAL = 600  # every 10 minutes
+FETCH_INTERVAL = 600  # 10 minutes
 
 # --- Fetch price from Polymarket ---
 def get_price():
     url = "https://polymarket.com/event/us-x-iran-nuclear-deal-in-2025"
-    response = requests.get(url)
-    if response.status_code == 200:
-        match = re.search(r'"outcomePrices":\s*\[\s*"([^"]+)"', response.text)
-        if match:
-            return round(float(match.group(1)) * 100, 2)
+    try:
+        response = requests.get(url)
+        if response.status_code == 200:
+            match = re.search(r'"outcomePrices":\s*\[\s*"([^"]+)"', response.text)
+            if match:
+                return round(float(match.group(1)) * 100, 2)
+    except Exception as e:
+        print("Error fetching price:", e)
     return None
 
 # --- Data storage ---
@@ -57,7 +61,7 @@ def fetch_and_store_price():
         data = load_data()
         timestamp = int(time.time())
         data.append({"time": timestamp, "price": price})
-        # Keep only last 6 hours of data
+        # Keep last 6 hours of data
         cutoff = timestamp - 6 * 60 * 60
         data = [d for d in data if d["time"] >= cutoff]
         save_data(data)
@@ -67,7 +71,7 @@ def fetch_and_store_price():
 
     threading.Timer(FETCH_INTERVAL, fetch_and_store_price).start()
 
-# --- Graph plotting ---
+# --- Plot price graph ---
 def plot_prices():
     data = load_data()
     if not data:
@@ -90,11 +94,11 @@ def plot_prices():
     plt.close()
     return img_path
 
-# --- Command handlers ---
+# --- Telegram command handlers ---
 def price_command(update: Update, context: CallbackContext):
     price = get_price()
     if price is not None:
-        update.message.reply_text(f"{price}")
+        update.message.reply_text(f"📈 Current price: {price}")
     else:
         update.message.reply_text("Price not available.")
 
@@ -106,6 +110,7 @@ def graph_command(update: Update, context: CallbackContext):
     if img_path:
         with open(img_path, "rb") as f:
             update.message.reply_photo(photo=InputFile(f))
+        os.remove(img_path)
     else:
         update.message.reply_text("No graph data available yet.")
 
@@ -123,13 +128,17 @@ def menu_command(update: Update, context: CallbackContext):
     start_command(update, context)
 
 def start_command(update: Update, context: CallbackContext):
-    keyboard = [
-        [InlineKeyboardButton("📈 Price", callback_data="price")],
-        [InlineKeyboardButton("🖼️ Graph", callback_data="graph")],
-        [InlineKeyboardButton("👋 Hello", callback_data="hello")],
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    update.message.reply_text("Choose an option:", reply_markup=reply_markup)
+    try:
+        keyboard = [
+            [InlineKeyboardButton("📈 Price", callback_data="price")],
+            [InlineKeyboardButton("🖼️ Graph", callback_data="graph")],
+            [InlineKeyboardButton("👋 Hello", callback_data="hello")],
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        if update.message:
+            update.message.reply_text("Choose an option:", reply_markup=reply_markup)
+    except Exception as e:
+        print("Error in /start:", e)
 
 def button_callback(update: Update, context: CallbackContext):
     query = update.callback_query
@@ -138,7 +147,7 @@ def button_callback(update: Update, context: CallbackContext):
     if query.data == "price":
         price = get_price()
         if price is not None:
-            query.edit_message_text(text=f"{price}")
+            query.edit_message_text(text=f"📈 {price}")
         else:
             query.edit_message_text(text="Price not available.")
 
@@ -148,40 +157,41 @@ def button_callback(update: Update, context: CallbackContext):
             with open(img_path, "rb") as f:
                 query.delete_message()
                 query.message.reply_photo(photo=InputFile(f))
+            os.remove(img_path)
         else:
             query.edit_message_text(text="No graph data available yet.")
 
     elif query.data == "hello":
         query.edit_message_text(text="Hello!")
 
-# --- Main ---
+# --- Main entry point ---
 def main():
+    # Ensure data file exists
+    if not os.path.exists(DATA_FILE):
+        with open(DATA_FILE, 'w') as f:
+            json.dump([], f)
+
     updater = Updater(BOT_TOKEN, use_context=True)
     dp = updater.dispatcher
 
-    # Command handlers
+    dp.add_handler(CommandHandler("start", start_command))
     dp.add_handler(CommandHandler("price", price_command))
-    dp.add_handler(CommandHandler("hello", hello_command))
     dp.add_handler(CommandHandler("graph", graph_command))
+    dp.add_handler(CommandHandler("hello", hello_command))
     dp.add_handler(CommandHandler("help", help_command))
     dp.add_handler(CommandHandler("menu", menu_command))
-    dp.add_handler(CommandHandler("start", start_command))
     dp.add_handler(CallbackQueryHandler(button_callback))
 
-    # Set visible command menu in Telegram
-    default_commands = [
+    updater.bot.set_my_commands([
         BotCommand("start", "Show menu with buttons"),
         BotCommand("price", "Get current price"),
         BotCommand("graph", "Show 6h price graph"),
         BotCommand("hello", "Say hello"),
         BotCommand("help", "Show help message"),
         BotCommand("menu", "Show quick action buttons"),
-    ]
-    updater.bot.set_my_commands(default_commands)
+    ])
 
-    # Start background price fetcher
     fetch_and_store_price()
-
     print("Bot is running. Send /start to try it.")
     updater.start_polling()
     updater.idle()
