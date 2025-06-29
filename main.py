@@ -5,7 +5,11 @@ import threading
 import re
 import requests
 from datetime import datetime
+
+import matplotlib
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+
 from telegram import (
     Update,
     InputFile,
