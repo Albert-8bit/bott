@@ -1,8 +1,8 @@
 [phases.setup]
-  nixPkgs = ["python310", "freetype", "libpng"]
+  nixPkgs = ["python310", "python3-pip", "freetype", "libpng"]
 
 [phases.install]
-  cmds = ["pip install -r requirements.txt"]
+  cmds = ["python3 -m pip install -r requirements.txt"]
 
 [phases.build]
   cmds = []
