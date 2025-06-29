@@ -1,11 +1,11 @@
 [phases.setup]
-  nixPkgs = ["python310Packages.pip", "python310Packages.python-telegram-bot", "python310Packages.matplotlib", "python310Packages.requests", "freetype", "libpng"]
+  nixPkgs = ["python310", "python310Packages.pip", "python310Packages.python-telegram-bot", "python310Packages.matplotlib", "python310Packages.requests", "freetype", "libpng"]
 
 [phases.install]
-  cmds = []
+  cmds = ["export PATH=/nix/store/*/bin:$PATH"]
 
 [phases.build]
   cmds = []
 
 [start]
-  cmd = "python3.10 main.py"
+  cmd = "/nix/store/*/bin/python3.10 main.py"
