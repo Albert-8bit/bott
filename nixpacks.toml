@@ -1,8 +1,8 @@
 [phases.setup]
-  nixPkgs = ["python310", "freetype", "libpng"]
+  nixPkgs = ["python310Packages.pip", "python310Packages.python-telegram-bot", "python310Packages.matplotlib", "python310Packages.requests", "freetype", "libpng"]
 
 [phases.install]
-  cmds = ["python3.10 -m pip install -r requirements.txt"]
+  cmds = []
 
 [phases.build]
   cmds = []
