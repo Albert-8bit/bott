@@ -8,4 +8,4 @@
   cmds = []
 
 [start]
-  cmd = "/nix/store/*/bin/python3.10 main.py"
+  cmd = "python3.10 /app/main.py"
